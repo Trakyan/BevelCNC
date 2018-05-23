@@ -1181,7 +1181,7 @@ module z_carriage()
 }
 }
 {//corners
-module corner_socket_blank()
+module corner_socket_blank(mirrored, corner_type)
 {
     //tube sleeve
     difference() {
@@ -1191,12 +1191,12 @@ module corner_socket_blank()
         {//corner bevel to save some material
         corner_break = 1.5*corner_bevel;
         break_angle = atan(corner_bevel/(corner_bevel*cos(45)));
-            
-        mirror([mirror, 0, 0])
-        for ( i = [ mirror == 1 ? 1:0 : 1 ] )
+        mirror([mirrored, 0, 0])
+        for ( e = [ 0 : (mirrored == 0) && (corner_type != "mirrored") ? 1:0 ] )    
+        for ( i = [ ( mirrored ==1 ? 1:0 ) : 1 ] )
         translate([0, 0, (corner_depth)/2])
         mirror([0, 0, i])
-        mirror([i, 0, 0])    
+        mirror([max(0, e, i), 0, 0])    
         translate([(-corner_break+corner_socket_sides/2), -corner_socket_bottom+corner_break, (corner_depth-corner_break)/2])
         rotate([0, 0, -135])
         rotate([-break_angle, 0, 0])
@@ -1276,7 +1276,7 @@ module corner_blank(mirrored)
     rotate([0, i*90, 0])
     mirror([0, i, 0])
     translate([0, -axis_seperation/2, -corner_depth/2])
-    corner_socket_blank( i == 1 ? 1:0);
+    corner_socket_blank( i == 1 ? 1:0, mirrored);
     }
     {//drive axle    
     translate([horizontal_drive_axle_offset, horizontal_drive_axle_offset, -vertical_drive_axle_offset])
@@ -1468,12 +1468,12 @@ module center_assembly()
         cylinder_c(2*(total_mount_clearance[0]+top_mount_width+z_plate_thick)+z_coupler_length+2*chamfer, tube-3*chamfer, chamfer=-2*chamfer);
     }
 }
-module corner_assembly(mirror)
+module corner_assembly(mirrored)
 {
     color(corner_color)
     rotate([0, 0, 135])
     rotate([90, 0, 0])
-    corner(mirror);
+    corner(mirrored);
 }
 module total_assembly()
 {
