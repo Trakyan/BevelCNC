@@ -1,5 +1,5 @@
 include <_lib/fillet_generator.scad>
-include <_lib/parts.scad>
+include <_lib/bolt_sizes.scad>
 include <_lib/math.scad>
 include <_lib/colors.scad>
 
@@ -1537,7 +1537,7 @@ module total_assembly()
 
 //center_assembly();
 //corner_assembly();
-//total_assembly();
+total_assembly();
 echo("bolt lengths");
 echo(3*wall_thick+nut_thick+2*washer+bearing_thick, "mm bolt x8, corner axle");
 echo(corner_socket_sides, "mm bolt x16, corner clamp bolt");
@@ -1548,5 +1548,10 @@ echo(2*(tube+wall_thick), "mm bolt x6, z rail clamping");
 echo(2*top_mount_width+nut_thick, "mm bolt x10, top bearing bolt");
 echo(slide_wing_thick+2*washer+bearing_thick+nut_thick, "mm bolt x24, wing bearing bolt");
 echo(2*(tube+wall_thick), "mm bolt x8, perimeter rail clamping");
+echo("total number of bolts", 85);
+echo("nuts", 8+16+1+4+8+6+10+24+8);
+echo("bearings", 44);
+echo("washers", 88);
+//slide bearing bolts 35, perimeter clamp bolts 8, corner clamp bolts 16, drive axles 8, z rail clamps 6, z plate mounts 4, z carriage bearing bolts 8.
 
-echo("other bolts: z carriage router mount (x4, length depends on your mount thickness), corner bolt downs (x8, lengths depends on the thickness of whatever you bolt them down to), motor mounting bolts (x6, length depends on how much you want it to thread into the motor)");
+echo("other bolts (and their corresponding nuts/washers) you'll need: z carriage router mount (x4, length depends on your mount thickness), corner bolt downs (x8, lengths depends on the thickness of whatever you bolt them down to), motor mounting bolts (x6, length depends on how much you want it to thread into the motor)", "minimum length for motor mount bolts (plus however much you want it to thread into the motor):", max(wall_thick, z_plate_thick/2+bolt_bezel));
