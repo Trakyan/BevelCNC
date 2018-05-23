@@ -1181,7 +1181,7 @@ module z_carriage()
 }
 }
 {//corners
-module corner_socket_blank(mirror)
+module corner_socket_blank()
 {
     //tube sleeve
     difference() {
@@ -1268,7 +1268,7 @@ module corner_socket_cutouts()
         cylinder_c(corner_depth, (nut_radius+break_edge)/cos(30)+tolerance, chamfer=break_edge, faces=j == 0 ? 6:0);
     }
 }
-module corner_blank()
+module corner_blank(mirrored)
 {
     {//the tube clamps
     rotate([90, 0, 0])
@@ -1308,7 +1308,7 @@ module corner_blank()
     }
     {//anchoring flange
     //bolt flanges to bolt it down
-    for ( i = [ 0 : 1 ] )
+    for ( i = [ mirrored == "mirrored" ? 0:1 : mirrored == "mirrored" ? 0:1 ] )
     mirror([0, 0, i])
     hull() 
     for ( j = [ 0 : 2 ] )
@@ -1324,7 +1324,7 @@ module corner_blank()
     }
     
 }
-module corner_cutouts()
+module corner_cutouts(mirrored)
 {
     {//tube clamp cutouts
     rotate([90, 0, 0])
@@ -1392,7 +1392,7 @@ module corner_cutouts()
     }
     }
     {//foot bolt down  
-    for ( i = [ 0 : 1 ] )
+    for ( i = [ mirrored == "mirrored" ? 0:1 : mirrored == "mirrored" ? 0:1 ] )
     mirror([0, 0, i])
     for ( j = [ 0 : 1 ] )
     translate([3*bolt_head_plate-corner_socket_sides/2+corner_bevel-chamfer-j*foot_bolt_spacing_xy-i*(corner_depth-corner_socket_sides)/2, -corner_depth/2-bolt_head_plate+j*foot_bolt_spacing_xy+i*(corner_depth-corner_socket_sides)/2, -axis_seperation/2-corner_socket_top-chamfer])
@@ -1404,14 +1404,14 @@ module corner_cutouts()
     cylinder_c(2*(wall_thick+tolerance), bolt_head_radius+tolerance, chamfer=-chamfer-tolerance);
     }
 }
-module corner(mirror)
+module corner(mirrored)
 {  
     rotate([90, 0, 0])
     rotate([0, 0, 45])
-    mirror([mirror == "mirrored" ? 1:0, mirror == "mirrored" ? -1:0, 0])
+    mirror([mirrored == "mirrored" ? 1:0, mirrored == "mirrored" ? -1:0, 0])
     difference() {
-        corner_blank(mirror);
-        corner_cutouts(mirror);
+        corner_blank(mirrored);
+        corner_cutouts(mirrored);
     }
 }
 }
