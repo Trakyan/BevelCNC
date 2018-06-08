@@ -3,7 +3,6 @@ include <_lib/bolt_sizes.scad>
 include <_lib/math.scad>
 include <_lib/colors.scad>
 
-
 pi = 3.141592;
 
 {//render details
@@ -15,11 +14,11 @@ center_color = color_black;
 z_color = color_red;
 }
 
-res = 3;//1.2;
+res = 0.5;//3;//1.2;
 
 {//machine specs   
-wall_thick = 9.6;
-min_thick = 2.4;
+wall_thick = 10;
+min_thick = 5;
 chamfer_angle = 45; //please don't change this I don't know why it's an option
 fillet = 1.2;
 clearance = 2;
@@ -47,7 +46,11 @@ slide_wing_braces = "true";
 
 {//hardware
 hardware = M5;
-z_coupler_length = 30;
+    
+z_coupler_length = 40;
+z_coupler_radius = 15;    
+anti_backlash_spring_length = 15;
+    
 pulley = hardware[3];
 {// pulley  
 pulley_bore = pulley[2];
@@ -97,7 +100,7 @@ motor_key_length = motor[7];
 motor_bolt_radius = motor[8];
 motor_bolt_spacing = motor[2];
 
-tube = 31.8/2; //25.4/2;
+tube = 25.4/2;
 
 }
 {//derived specs
@@ -108,7 +111,7 @@ bolt_bezel = bolt_radius+2*break_edge+chamfer;
 bolt_head_bezel = bolt_head_radius+break_edge+min_thick+chamfer;
     
 filleting_radius = fillet+chamfer;
-bolt_head_plate = max(nut_radius, bolt_head_radius)+clearance;
+bolt_head_plate = max(nut_radius, bolt_head_radius)+tolerance+max(clearance, break_edge+chamfer);
     
 gear_width = 20;
 motor_gear_teeth = 15;
@@ -186,7 +189,7 @@ top_mount_to_wing = (slide_wing_thick+bolt_head_thick+clearance+bearing_thick/2+
     corner_bevel = big_bevel; 
     corner_socket_top = (vertical_drive_axle_offset-axis_seperation/2+washer+pulley_thick+washer+max(bolt_head_thick, nut_thick)+clearance);
     corner_socket_bottom = (tube+2*bolt_head_plate+corner_bevel);
-    corner_socket_sides = 2*(tube+wall_thick);
+    corner_socket_sides = 2*(tube+chamfer+min_thick+corner_bevel);
     
     corner_depth = max( 2*(horizontal_drive_axle_offset+bolt_bezel+bolt_head_plate+corner_bevel), (2*(corner_socket_sides/2+corner_bevel+2*chamfer+2*bolt_head_plate+corner_bevel)) ); 
     drive_motor_offset = corner_depth/2+motor_width/2;
@@ -877,7 +880,36 @@ module bearing_slide(pos)
 }
 }
 {//z_axis stuff
-module z_plate_cutouts()
+module z_motor_mount()
+{
+    motor_bezel = big_bevel;
+    
+    translate(z_kingpin_offset)
+    rotate([0, 0, 45])
+    translate([0, z_spacing/2, 0])
+    hull()
+    for ( i = [ -1 : 2 : 1 ] )
+    translate([0, i*motor_bezel/2, 0])
+    rotate([0, 0, 45])
+    cube_c([motor_width+2*motor_bezel, motor_width+2*motor_bezel, z_plate_thick]);
+    
+    motor_bolt_diagonal = sqrt(2*pow(motor_bolt_spacing/2,2));
+    motor_bolt_surround = motor_bolt_diagonal-z_bearing_radius-2*chamfer;
+    standoff_width = ((motor_bezel+(motor_width-motor_bolt_spacing)/2-chamfer)/cos(45)+motor_bolt_surround+motor_bezel/2)/cos(45)-2*motor_bezel/2*cos(45)-chamfer;
+    
+    for ( m = [ -1 : 2 : 1 ] )
+    hull()
+    for ( i = [ 0 : 1 ] )
+    mirror([i, -i, 0])
+    translate(z_kingpin_offset)
+    rotate([0, 0, 45])
+    translate([0, z_spacing/2+m*motor_bezel/2, 0])
+    rotate([0, 0, -45])
+    for ( j = [ 0 : 1 ] )
+    translate([m*(chamfer-(motor_width/2+motor_bezel)), m*(chamfer-(motor_width/2+motor_bezel)+j*standoff_width), 0])
+    cube_c([2*chamfer, 2*chamfer, z_plate_thick+z_coupler_length+3*chamfer]);
+}
+module z_plate_cutouts(motor_mount)
 {
     translate([0, 0, -chamfer])
     for ( i = [ 0 : 1 ] )
@@ -936,32 +968,66 @@ module z_plate_cutouts()
         rotate([-90, 0, 0])
         cylinder_c(z_kingpin_offset[0]+tube+wall_thick, nut_radius/cos(30)+tolerance, chamfer=break_edge, faces=6);
         }
-    
-        {//cutout to save material 
-        x_disp = z_kingpin_offset[0]-(tube+bolt_bezel-(nut_radius/cos(30)+tolerance+chamfer))*cos(45)-(wall_thick+tube)*cos(45);
-        y_disp = z_kingpin_offset[1]+(tube+bolt_bezel-(nut_radius/cos(30)+tolerance+chamfer))*cos(45)-(wall_thick+tube)*cos(45);
-        //bevel for the cutout
-        for ( j = [ 0 : 1 ] )
-        translate([0, 0, j*(z_plate_thick)-2*chamfer])
-        hull() {
-            for ( k = [ 0 : 1 ] )
-            mirror([k,-k,0])
-            translate([x_disp, y_disp, 0])
-            translate([chamfer-(x_disp-2*bolt_head_plate+2*chamfer)/2, chamfer-(y_disp-bolt_head_plate+2*chamfer)/2+chamfer, chamfer])
-            cube_c([x_disp-2*bolt_head_plate+2*chamfer, y_disp-bolt_head_plate+2*chamfer, 4*chamfer], chamfer=2*chamfer);
+        //motor mount bolt holes
+        if ( motor_mount == "motor" ) {
+            for ( i = [ -1 : 2 : 1 ] )
+            translate(z_kingpin_offset)
+            rotate([0, 0, 45])
+            translate([0, z_spacing/2, 0])
+            {
+                rotate([0, 0, -45])
+                translate([i*motor_bolt_spacing/2, i*motor_bolt_spacing/2, 0])
+                {
+                    translate([0, 0, z_plate_thick+z_coupler_length-wall_thick])
+                    cylinder_c(wall_thick+2*chamfer, motor_bolt_radius+tolerance, chamfer1=0, chamfer2=-2*chamfer);
+                        
+                    cylinder_c(z_plate_thick+z_coupler_length-wall_thick+2*chamfer+motor_bolt_radius+tolerance, (motor_width-motor_bolt_spacing)/2, chamfer1=-2*chamfer, chamfer2=(motor_width-motor_bolt_spacing)/2);
+                }
+                translate([0, 0, z_plate_thick+chamfer])
+                    cylinder_c(z_coupler_length+chamfer, z_coupler_radius+clearance, chamfer1=chamfer, chamfer2=-2*chamfer);
+            }
+            
+            //motor countersink
+            translate(z_kingpin_offset)
+            rotate([0, 0, 45])
+            translate([0, z_spacing/2, z_plate_thick+z_coupler_length+chamfer])
+            rotate([0, 0, -45])
+            cube_c([motor_width+2*chamfer, motor_width+2*chamfer, 3*chamfer], bottom_chamfer=chamfer, top_chamfer=-chamfer);
         }
-        //cutout
-        hull() {
-            for ( k = [ 0 : 1 ] )
-            mirror([k,-k,0])
-            translate([x_disp, y_disp, 0])
-            translate([-(x_disp-2*bolt_head_plate)/2, -(y_disp-bolt_head_plate)/2+chamfer, -chamfer])
-            cube_c([x_disp-2*bolt_head_plate, y_disp-bolt_head_plate, 2*z_plate_thick], chamfer=chamfer);
-        }
+        
+        difference() {
+            union() {
+            //cutout to save material 
+            x_disp = z_kingpin_offset[0]-(tube+bolt_bezel-(nut_radius/cos(30)+tolerance+chamfer))*cos(45)-(wall_thick+tube)*cos(45);
+            y_disp = z_kingpin_offset[1]+(tube+bolt_bezel-(nut_radius/cos(30)+tolerance+chamfer))*cos(45)-(wall_thick+tube)*cos(45);
+            //bevel for the cutout
+            for ( j = [ 0 : 1 ] )
+            translate([0, 0, j*(z_plate_thick)-2*chamfer])
+            hull() {
+                for ( k = [ 0 : 1 ] )
+                mirror([k,-k,0])
+                translate([x_disp, y_disp, 0])
+                translate([chamfer-(x_disp-2*bolt_head_plate+2*chamfer)/2, chamfer-(y_disp-bolt_head_plate+2*chamfer)/2+chamfer, chamfer])
+                cube_c([x_disp-2*bolt_head_plate+2*chamfer, y_disp-bolt_head_plate+2*chamfer, 4*chamfer], chamfer=2*chamfer);
+            }
+            //cutout
+            hull() {
+                for ( k = [ 0 : 1 ] )
+                mirror([k,-k,0])
+                translate([x_disp, y_disp, 0])
+                translate([-(x_disp-2*bolt_head_plate)/2, -(y_disp-bolt_head_plate)/2+chamfer, -chamfer])
+                cube_c([x_disp-2*bolt_head_plate, y_disp-bolt_head_plate, 2*z_plate_thick], chamfer=chamfer);
+            }
+            }
+            if ( motor_mount == "motor" )
+            {
+                translate([0, 0, chamfer])
+                z_motor_mount();
+            }
         }
     }    
 }
-module z_plate_blank()
+module z_plate_blank(motor_mount)
 {
     hull() 
     for ( i = [ 0 : 1 ] )
@@ -983,104 +1049,23 @@ module z_plate_blank()
         translate([chamfer-bolt_head_plate, top_bearing_seperation+slide_length-z_mount_thick-(2*wall_thick+nut_thick)/2-(bearing_offset-total_mount_clearance[1]+bolt_head_plate), 0])
         cube_c([2*chamfer, 2*wall_thick+nut_thick, z_plate_thick]);  
     }
+    {//plate to hold the motor standoffs
+    if ( motor_mount == "motor" )
+    z_motor_mount();
+    }
 }
-module z_plate()
+module z_plate(motor_mount)
 {   
     difference() {
-        z_plate_blank();
-        z_plate_cutouts();
-    }
-}
-module z_motor_plate_blank()
-{
-    //rail surrounds
-    hull()
-    for ( i = [ 0 : 1 ] )
-        mirror([i,-i,0])
-        translate(z_kingpin_offset)
-        rotate([0, 0, 22.5])
-        cylinder_c(z_plate_thick, (tube+wall_thick)/cos(22.5), faces=8);
-    
-    //motor mounting plate
-    hull()
-    for ( i = [ -1 : 2 : 1 ] )
-        translate([z_kingpin_offset[1], z_kingpin_offset[1], 0])
-        rotate([0, 0, -45])
-        translate([i*big_bevel/2, drive_offset, 0])
-        rotate([0, 0, 45])
-        cube_c([2*( motor_width/2+clearance+big_bevel ), 2*( motor_width/2+clearance+big_bevel ), z_plate_thick]);
-    
-    
-}
-module z_motor_plate_cutouts()
-{
-    for ( i = [ 0 : 1 ] )
-    mirror([i,-i,0]) {
-        //rail cutouts
-        translate([z_kingpin_offset[0], z_kingpin_offset[1], -chamfer])
-        cylinder_c(z_plate_thick+2*chamfer, tube+tolerance, chamfer=-2*chamfer);
-        
-        //clamping slit
-        translate(z_kingpin_offset)
-        rotate([0, 0, -45])
-        translate([-z_spacing/2, 0, 0])
-        cube_c([z_spacing, max(2*chamfer, clearance), z_plate_thick], chamfer=-chamfer);
-        
-        //z rail clamping
-        translate(z_kingpin_offset)
-        rotate([0, 0, -45])
-        translate([-(tube+bolt_bezel), 0, z_plate_thick/2]) {
-            
-            translate([0, max(2*chamfer, clearance)/2-chamfer, 0])
-            rotate([90, 0, 0])
-            cylinder_c(tube+wall_thick+chamfer+break_edge-max(2*chamfer, clearance)/2-(nut_thick+clearance), bolt_radius+tolerance, chamfer1=-2*chamfer, chamfer2=-2*break_edge);
-            
-            translate([0, max(2*chamfer, clearance)/2-chamfer, 0])
-            rotate([-90, 0, 0])
-            cylinder_c(tube+wall_thick+2*chamfer-max(2*chamfer, clearance)/2, bolt_radius+tolerance, chamfer=-2*chamfer);
-            
-            translate([0, nut_thick+max(2*chamfer, clearance)/2-(tube+wall_thick)+break_edge, 0])
-            rotate([90, 0, 0])
-            cylinder_c(nut_thick+clearance+break_edge, nut_radius/cos(30)+tolerance, chamfer1=break_edge, chamfer2=-2*break_edge, faces=6);
-        }
-        
-        //motor countersink
-        translate([z_kingpin_offset[1], z_kingpin_offset[1], z_plate_thick/2+bolt_bezel])
-        rotate([0, 0, -45])
-        translate([0, drive_offset, 0])
-        rotate([0, 0, 45])
-        cube_c([motor_width+clearance+chamfer, motor_width+clearance+chamfer, z_plate_thick-(z_plate_thick/2+bolt_bezel)], bottom_chamfer=chamfer, top_chamfer=-chamfer);
-        
-        //motor shaft clearance hole
-        translate([z_kingpin_offset[1], z_kingpin_offset[1], 0])
-        rotate([0, 0, -45])
-        translate([0, drive_offset, -chamfer])
-        cylinder_c((z_plate_thick/2+bolt_bezel)+2*chamfer, sqrt(2*pow(motor_bolt_spacing/2, 2))-motor_bolt_radius-2*chamfer-min_thick, chamfer=-2*chamfer);
-        
-        //motor shaft clearance hole
-        translate([z_kingpin_offset[1], z_kingpin_offset[1], 0])
-        rotate([0, 0, -45])
-        translate([0, drive_offset, -chamfer])
-        {
-            for ( i = [ 0 : 1 ] )
-                rotate([0, 0, 45+i*180])
-                translate([motor_bolt_spacing/2, motor_bolt_spacing/2, 0])
-                cylinder_c((z_plate_thick/2+bolt_bezel)+2*chamfer, motor_bolt_radius+tolerance, chamfer=-2*chamfer);
-        }
-        
-    }
-}
-module z_motor_plate()
-{
-    difference() {
-        z_motor_plate_blank();
-        z_motor_plate_cutouts();
+        z_plate_blank(motor_mount);
+        z_plate_cutouts(motor_mount);
     }
 }
 module z_carriage_cutouts()
 {
-    for ( i = [ -1 : 2 : 1 ] )
-        translate([0, 0, i*(z_carriage_height-2*bolt_head_plate)/2])
+    for ( i = [ 0 : 1 ] )
+        mirror([0, 0, i])
+        translate([0, 0, (z_carriage_height)/2-bolt_head_plate])
         for ( j = [ 0 : 1 ] )
         mirror([0, j, 0])
         translate([0, -z_spacing/2, 0])
@@ -1089,21 +1074,27 @@ module z_carriage_cutouts()
         rotate([0, 0, z_bearing_angle/2])
         rotate([0, 90, 0])
     {
+        nut_cutout_depth = nut_thick+clearance;
+        nut_trap_depth = min( ((bearing_offset-(nut_radius+tolerance))*cos(45)-(chamfer/2))/cos(45), wall_thick+bearing_thick/2+washer+nut_cutout_depth );   
         {//bearing bolts
         translate([0, bearing_offset, bearing_thick/2+washer-chamfer])
-        cylinder_c(wall_thick+break_edge+chamfer, bolt_radius+tolerance, chamfer2=-2*break_edge, chamfer1=-2*chamfer);
+        cylinder_c(nut_trap_depth-(bearing_thick/2+washer+nut_cutout_depth)+break_edge+chamfer, bolt_radius+tolerance, chamfer2=-2*break_edge, chamfer1=-2*chamfer);
+        
+        translate([0, bearing_offset, nut_trap_depth-break_edge])
+        cylinder_c(wall_thick+bearing_thick/2+washer+nut_cutout_depth-nut_trap_depth+break_edge, bolt_radius+tolerance, chamfer1=-2*break_edge, chamfer2=chamfer);
+        
         }
         {//nut traps
         //nut trap
-        translate([0, bearing_offset, bearing_thick/2+washer+wall_thick]) 
+        translate([0, bearing_offset, (nut_trap_depth-nut_cutout_depth)]) 
         hull()
         for ( s = [ 0 : 1 ] )
-        translate([-s*i*2*bolt_head_plate, 0, 0])
-        cylinder_c(nut_thick+clearance, nut_radius/cos(30)+tolerance, chamfer=break_edge, faces=6);
+        translate([-s*bolt_head_plate, 0, 0])
+        cylinder_c(nut_cutout_depth, nut_radius/cos(30)+tolerance, chamfer=break_edge, faces=6);
         
         //bevel for the nut traps
-        translate([break_edge-3*break_edge/2-bolt_head_plate, bearing_offset, bearing_thick/2+washer+wall_thick-break_edge]) 
-        cube_c([5*break_edge, 2*(nut_radius+tolerance+break_edge), nut_thick+clearance+2*break_edge], chamfer=2*break_edge);
+        translate([-bolt_head_plate, bearing_offset, nut_trap_depth-nut_cutout_depth-break_edge]) 
+        cube_c([4*break_edge, 2*(nut_radius+tolerance+break_edge), nut_cutout_depth+2*break_edge], chamfer=2*break_edge);
         }
     }
     
@@ -1113,7 +1104,7 @@ module z_carriage_cutouts()
     translate([0, 0, z_carriage_height/2+chamfer])
     mirror([0, 0, 1])
     rotate([0, 0, 360/12])
-    cylinder_c(nut_thick+clearance+chamfer, z_nut_radius/cos(30)+tolerance, chamfer2=break_edge, chamfer1=-2*chamfer, faces=6);
+    cylinder_c(nut_thick+clearance+anti_backlash_spring_length+chamfer, z_nut_radius/cos(30)+tolerance, chamfer2=break_edge, chamfer1=-2*chamfer, faces=6);
     }
     
     {//leadscrew cutout
@@ -1191,7 +1182,19 @@ module corner_socket_blank(mirrored, corner_type)
         {//corner bevel to save some material
         corner_break = 1.5*corner_bevel;
         break_angle = atan(corner_bevel/(corner_bevel*cos(45)));
-        mirror([mirrored, 0, 0])
+        
+        translate([0, 0, corner_depth/2])
+        for ( i = [ 0 : 1 ] )
+        mirror([i, 0, 0])
+        for ( j = [ 0 : 1 ] )
+        mirror([0, j, 0])
+        for ( k = [ 0 : 1 ] )
+        mirror([0, 0, k])
+        translate([-(3*corner_bevel+bolt_head_plate*tan(22.5)), -(-corner_bevel), -corner_depth/2])
+        translate([corner_socket_sides, (corner_socket_top+corner_socket_bottom)/2, -corner_socket_sides/2])
+        cube_c([corner_socket_sides, corner_socket_sides, corner_socket_sides], chamfer=corner_socket_sides/2);
+        
+        *mirror([mirrored, 0, 0])
         for ( e = [ 0 : (mirrored == 0) && (corner_type != "mirrored") ? 1:0 ] )    
         for ( i = [ ( mirrored ==1 ? 1:0 ) : 1 ] )
         translate([0, 0, (corner_depth)/2])
@@ -1203,20 +1206,19 @@ module corner_socket_blank(mirrored, corner_type)
         translate([-(2*corner_break/cos(45)), -(2*corner_break/cos(45)), 0])
         cube([2*(2*corner_break/cos(45)), 2*(2*corner_break/cos(45)), 2*(2*corner_break/cos(45))]);
         }
-    }
-    
-    
-    //clamp bolt sleeve
-    for ( i = [ -1 : 2 : 1 ] )
+    }  
+    {//clamp bolt sleeve
+    *for ( i = [ -1 : 2 : 1 ] )
     translate([0, (tube+bolt_head_plate), corner_depth/2-bolt_head_plate+i*(corner_depth/2-corner_bevel-bolt_head_plate)])
     cube_c([corner_socket_sides, 2*bolt_head_plate, 2*bolt_head_plate], chamfer);
-    
-    //bridging bevel between tube sleeves
+    }
+    {//bridging bevel between tube sleeves
     translate([0, 0, 0])
     hull()
     for ( i = [ 0 : 1 ] )
     translate([0, axis_seperation-corner_socket_bottom+(i-1)*corner_bevel, corner_depth/2-(corner_socket_sides-2*corner_bevel)/2])
     cube_c([corner_socket_sides+i*2*corner_bevel, 2*corner_bevel, corner_socket_sides-2*corner_bevel], corner_bevel);
+    }
 }
 module corner_socket_cutouts()
 {
@@ -1268,7 +1270,7 @@ module corner_socket_cutouts()
         cylinder_c(corner_depth, (nut_radius+break_edge)/cos(30)+tolerance, chamfer=break_edge, faces=j == 0 ? 6:0);
     }
 }
-module corner_blank(mirrored)
+module corner_blank(mirrored, motor_mount)
 {
     {//the tube clamps
     rotate([90, 0, 0])
@@ -1283,32 +1285,29 @@ module corner_blank(mirrored)
     rotate([0, 0, 360/16])
     cylinder_c(2*vertical_drive_axle_offset, (pulley_radius+clearance+chamfer)/cos(22.5), faces=8);
     }
-    {//motor flange
+    {//motor flange 
     distance_to_base = corner_socket_sides/2*cos(45)+(corner_depth/2+horizontal_drive_axle_offset-corner_bevel)*cos(45);
     motor_bezel = distance_to_base-(drive_motor_offset-motor_bolt_spacing/2)*cos(45)-motor_bolt_spacing/2*cos(45);
-    
-        { 
-        end_of_clamp = (corner_depth/2-horizontal_drive_axle_offset)*cos(45)+(drive_motor_offset-corner_socket_sides/2)*cos(45)+corner_bevel*cos(45)-sqrt(2*pow(motor_bolt_spacing/2, 2));    
-            
-        translate([0, 0, vertical_drive_axle_offset-2*wall_thick])
-        
-        hull() {
-            translate([horizontal_drive_axle_offset+motor_bolt_spacing/2, motor_bolt_spacing/2-drive_motor_offset, 0])
-            for ( j = [ 0 : 1 ] )
-            rotate([0, 0, j*180])
-            translate([j*motor_bolt_spacing, 0])
-            rotate([0, 0, 360/16])
-            cylinder_c(2*wall_thick, j == 1 ? (motor_bezel/cos(22.5)):(end_of_clamp/cos(22.5)), faces=8);    
-         
-            translate([0, corner_bevel-corner_socket_sides/2, 0])
-            rotate([0, 0, -90])
-            cube_c([2*chamfer, corner_depth, 2*wall_thick]);
-        }
+    end_of_clamp = (corner_depth/2-horizontal_drive_axle_offset)*cos(45)+(drive_motor_offset-corner_socket_sides/2)*cos(45)+corner_bevel*cos(45)-sqrt(2*pow(motor_bolt_spacing/2, 2)); 
+     
+    if ( motor_mount != "none" )    
+    translate([0, 0, vertical_drive_axle_offset-2*wall_thick])
+    hull() {
+        translate([horizontal_drive_axle_offset+motor_bolt_spacing/2, motor_bolt_spacing/2-drive_motor_offset, 0])
+        for ( j = [ 0 : 1 ] )
+        rotate([0, 0, j*180])
+        translate([j*motor_bolt_spacing, 0])
+        rotate([0, 0, 360/16])
+        cylinder_c(2*wall_thick, j == 1 ? (motor_bezel/cos(22.5)):(end_of_clamp/cos(22.5)), faces=8);    
+     
+        translate([0, corner_bevel-corner_socket_sides/2, 0])
+        rotate([0, 0, -90])
+        cube_c([2*chamfer, corner_depth, 2*wall_thick]);
     }
     }
-    {//anchoring flange
+    {//anchoring flange (old)
     //bolt flanges to bolt it down
-    for ( i = [ mirrored == "mirrored" ? 0:1 : mirrored == "mirrored" ? 0:1 ] )
+    *for ( i = [ mirrored == "mirrored" ? 0:1 : mirrored == "mirrored" ? 0:1 ] )
     mirror([0, 0, i])
     hull() 
     for ( j = [ 0 : 2 ] )
@@ -1324,7 +1323,7 @@ module corner_blank(mirrored)
     }
     
 }
-module corner_cutouts(mirrored)
+module corner_cutouts(mirrored, motor_mount)
 {
     {//tube clamp cutouts
     rotate([90, 0, 0])
@@ -1337,7 +1336,7 @@ module corner_cutouts(mirrored)
     }
     {//string drive path clearance
     clearance_cut_height = max(2*chamfer, axis_seperation/2+corner_socket_top-vertical_drive_axle_offset);
-        
+    if ( motor_mount != "none" )    
     translate([horizontal_drive_axle_offset+(drive_motor_offset+motor_width/2)/tan(22.5)-(pulley_radius+chamfer+clearance), (horizontal_drive_axle_offset+drive_motor_offset)/2-drive_motor_offset, vertical_drive_axle_offset])
     rotate([0, 0, 360/16])
     cylinder_c(clearance_cut_height+chamfer, (drive_motor_offset+motor_width/2)/tan(22.5)/cos(22.5), chamfer1=chamfer, chamfer2=-2*chamfer, faces=8);
@@ -1367,6 +1366,7 @@ module corner_cutouts(mirrored)
     cylinder_c(2*(corner_socket_top+corner_socket_bottom), (pulley_radius+chamfer+clearance+j*chamfer)/cos(22.5), chamfer=chamfer, faces=8);
     }
     {//motor mount cutouts
+    if ( motor_mount != "none" )
     translate([horizontal_drive_axle_offset, -drive_motor_offset, vertical_drive_axle_offset])
     {
         //mount holes
@@ -1391,27 +1391,37 @@ module corner_cutouts(mirrored)
         cube_c([corner_depth, motor_width+2*chamfer, wall_thick], top_chamfer=chamfer, bottom_chamfer=-chamfer);
     }
     }
-    {//foot bolt down  
-    for ( i = [ mirrored == "mirrored" ? 0:1 : mirrored == "mirrored" ? 0:1 ] )
+    {//foot bolt down (old)  
+    *for ( i = [ mirrored == "mirrored" ? 0:1 : mirrored == "mirrored" ? 0:1 ] )
     mirror([0, 0, i])
     for ( j = [ 0 : 1 ] )
     translate([3*bolt_head_plate-corner_socket_sides/2+corner_bevel-chamfer-j*foot_bolt_spacing_xy-i*(corner_depth-corner_socket_sides)/2, -corner_depth/2-bolt_head_plate+j*foot_bolt_spacing_xy+i*(corner_depth-corner_socket_sides)/2, -axis_seperation/2-corner_socket_top-chamfer])
     cylinder_c(wall_thick+2*chamfer, bolt_radius+tolerance, chamfer=-2*chamfer);
     
-    mirror([0, 0, 1])
+    *mirror([0, 0, 1])
     for ( j = [ 0 : 0 ] )
     translate([3*bolt_head_plate-corner_socket_sides/2+corner_bevel-chamfer-(corner_depth-corner_socket_sides)/2, -corner_depth/2-bolt_head_plate+(corner_depth-corner_socket_sides)/2, -tolerance-vertical_drive_axle_offset])
     cylinder_c(2*(wall_thick+tolerance), bolt_head_radius+tolerance, chamfer=-chamfer-tolerance);
     }
+    {//anchor bolt hole
+    mirror([0, 0, mirrored == "mirrored" ? 0:1])
+    {
+        translate([0, 0, -axis_seperation/2-corner_socket_top-chamfer])
+        cylinder_c(wall_thick+chamfer+break_edge, bolt_radius+tolerance, chamfer1=-2*chamfer, chamfer2=-2*break_edge);
+        
+        translate([0, 0, -axis_seperation/2-(corner_socket_top-wall_thick)])   
+        cylinder_c(corner_socket_top-wall_thick, nut_radius/cos(30)+tolerance, chamfer=break_edge, faces=6);
+    }
+    }
 }
-module corner(mirrored)
+module corner(mirrored, motor_mount="none")
 {  
     rotate([90, 0, 0])
     rotate([0, 0, 45])
     mirror([mirrored == "mirrored" ? 1:0, mirrored == "mirrored" ? -1:0, 0])
     difference() {
-        corner_blank(mirrored);
-        corner_cutouts(mirrored);
+        corner_blank(mirrored, motor_mount);
+        corner_cutouts(mirrored, motor_mount);
     }
 }
 }
@@ -1527,17 +1537,21 @@ module total_assembly()
 }
 }
 
-//z_carriage();                 // x1
-//z_motor_plate();              // x1
-//z_plate();                    // x2
-//bearing_slide("center");      // x2
-//bearing_slide("perimeter");   // x4
-//corner();                     // x2
-//corner("mirrored");           // x2
+//z_carriage();                                     // x1
+//z_plate("motor");                                 // x1
+//z_plate();                                        // x1
+//bearing_slide("center");                          // x2
+//bearing_slide("perimeter");                       // x4
+//corner(motor_mount = "lower");                    // x1  //"lower motor"
+//corner("mirrored", motor_mount = "upper");        // x1  //"upper motor"
+//corner("mirrored");                               // x1  //"upper bolt down"
+//corner();                                         // x1  //"lower bolt down"
+
 
 //center_assembly();
 //corner_assembly();
-total_assembly();
+//total_assembly();
+/*
 echo("bolt lengths");
 echo(3*wall_thick+nut_thick+2*washer+bearing_thick, "mm bolt x8, corner axle");
 echo(corner_socket_sides, "mm bolt x16, corner clamp bolt");
@@ -1548,10 +1562,10 @@ echo(2*(tube+wall_thick), "mm bolt x6, z rail clamping");
 echo(2*top_mount_width+nut_thick, "mm bolt x10, top bearing bolt");
 echo(slide_wing_thick+2*washer+bearing_thick+nut_thick, "mm bolt x24, wing bearing bolt");
 echo(2*(tube+wall_thick), "mm bolt x8, perimeter rail clamping");
-echo("total number of bolts", 85);
+echo("total number of bolts", 8+4+16+1+4+2+8+4*(4+2+2)+4);
 echo("nuts", 8+16+1+4+8+6+10+24+8);
 echo("bearings", 44);
 echo("washers", 88);
 //slide bearing bolts 35, perimeter clamp bolts 8, corner clamp bolts 16, drive axles 8, z rail clamps 6, z plate mounts 4, z carriage bearing bolts 8.
 
-echo("other bolts (and their corresponding nuts/washers) you'll need: z carriage router mount (x4, length depends on your mount thickness), corner bolt downs (x8, lengths depends on the thickness of whatever you bolt them down to), motor mounting bolts (x6, length depends on how much you want it to thread into the motor)", "minimum length for motor mount bolts (plus however much you want it to thread into the motor):", max(wall_thick, z_plate_thick/2+bolt_bezel));
+echo("other bolts (and their corresponding nuts/washers) you'll need: z carriage router mount (x4, length depends on your mount thickness), corner bolt downs (x8, lengths depends on the thickness of whatever you bolt them down to), motor mounting bolts (x6, length depends on how much you want it to thread into the motor)", "minimum length for motor mount bolts (plus however much you want it to thread into the motor):", wall_thick);
